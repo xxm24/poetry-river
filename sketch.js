@@ -1,5 +1,5 @@
 // ============================================================
-//   诗词意象河流 — 点击垂钓版（修复版）
+//   诗词意象河流 — 修复密集+特效版
 // ============================================================
 
 let poems = [];
@@ -28,27 +28,30 @@ let caughtIds = [];
 // 河流背景文字
 let bgChars = [];
 
-// 朝代
+// 朝代 — 加宽区间
 let dynastyList = [
-    { name: '先秦', t: 0.03 },
-    { name: '魏晋', t: 0.12 },
-    { name: '唐', t: 0.35 },
-    { name: '宋', t: 0.58 },
-    { name: '元', t: 0.72 },
-    { name: '明', t: 0.82 },
-    { name: '清', t: 0.92 }
+    { name: '先秦', t: 0.03, span: 0.08 },
+    { name: '魏晋', t: 0.12, span: 0.08 },
+    { name: '唐',   t: 0.30, span: 0.20 },
+    { name: '宋',   t: 0.55, span: 0.15 },
+    { name: '元',   t: 0.72, span: 0.08 },
+    { name: '明',   t: 0.82, span: 0.08 },
+    { name: '清',   t: 0.92, span: 0.06 }
 ];
 
 // 时间轴拖动
 let tlDrag = false;
 
-// 特效
+// 特效系统 —— 全新
 let effects = [];
-let bgDark = 0;
+let bgTint = { r: 0, g: 0, b: 0, a: 0 };       // 全屏染色
+let targetTint = { r: 0, g: 0, b: 0, a: 0 };
+let glowPulse = 0;    // 中心光晕
 let moonUp = 0;
 let umbrella = 0;
 let activeEffect = '';
 let effectTimer = 0;
+let effectAccent = { r: 120, g: 120, b: 120 };
 
 // 悬停
 let hoveredFish = null;
@@ -66,18 +69,16 @@ function setup() {
     c.parent('canvas-container');
     riverY = height * 0.6;
 
-    // loadJSON可能返回对象而非数组
     if (!Array.isArray(poems)) {
         let temp = [];
         for (let k in poems) temp.push(poems[k]);
         poems = temp;
     }
 
-    worldW = max(5000, poems.length * 120+ 800);
-    createBgChars();
+    worldW = max(6000, poems.length * 150+ 1000);
     createFishes();
+    createBgChars();
 
-    // 开始按钮
     document.getElementById('start-btn').addEventListener('click', function () {
         gameStarted = true;
         document.getElementById('start-screen').classList.add('fade-out');
@@ -85,11 +86,82 @@ function setup() {
             document.getElementById('start-screen').style.display = 'none';}, 1200);
     });
 
-    // 关闭卡片
     document.getElementById('card-close').addEventListener('click', function () {
         document.getElementById('poem-card').classList.add('hidden');
         activeEffect = '';
+        targetTint = { r: 0, g: 0, b: 0, a: 0 };
     });
+}
+
+
+// ============================================================
+//   创建意象鱼 —— 防密集算法
+// ============================================================
+function createFishes() {
+    fishes = [];
+
+    // 按朝代分组
+    let groups = {};
+    for (let i = 0; i < dynastyList.length; i++) {
+        groups[dynastyList[i].name] = [];
+    }
+    for (let i = 0; i < poems.length; i++) {
+        let d = poems[i].dynasty;
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(poems[i]);
+    }
+
+    // 每个朝代内均匀分布
+    for (let di = 0; di < dynastyList.length; di++) {
+        let dyn = dynastyList[di];
+        let arr = groups[dyn.name];
+        if (!arr || arr.length === 0) continue;
+
+        //朝代在世界坐标的范围
+        let startT = dyn.t - dyn.span / 2;
+        let endT = dyn.t + dyn.span / 2;
+        let startX = 200 + startT * (worldW - 400);
+        let endX = 200 + endT * (worldW - 400);
+        let rangeX = endX - startX;
+
+        // 均匀间距
+        let spacing = rangeX / (arr.length + 1);
+        // 最小间距 80px
+        spacing = max(spacing, 80);
+
+        for (let j = 0; j < arr.length; j++) {
+            let p = arr[j];
+            let wx = startX + spacing * (j + 1);
+
+            // 上下交错避免重叠
+            let yOffset;
+            if (arr.length <= 5) {
+                yOffset = (j % 3 - 1) * 28;
+            } else {
+                // 多层分布：5层
+                let layer = j % 5;
+                yOffset = (layer - 2) * 22;
+            }
+
+            let fy = riverY + yOffset;
+
+            fishes.push({
+                poem: p,
+                worldX: wx,
+                y: fy,
+                baseY: fy,
+                swimSpd: random(0.12, 0.3),
+                swimRange: random(8, 20),
+                swimOff: random(1000),
+                bobSpd: random(0.012, 0.022),
+                bobAmt: random(1.5, 3),
+                caught: false,
+                catching: false,
+                screenX: 0,
+                screenY: 0
+            });
+        }
+    }
 }
 
 
@@ -105,58 +177,24 @@ function createBgChars() {
     }
     if (allChars.length === 0) allChars.push('诗');
 
-    let spacingX = 50;
-    let spacingY = 38;
+    let spacingX = 55;
+    let spacingY = 40;
     let cols = Math.ceil(worldW / spacingX);
     let rows = Math.ceil(riverH / spacingY);
 
     for (let col = 0; col < cols; col++) {
         for (let row = 0; row < rows; row++) {
-            if (random() < 0.35) continue;
+            if (random() < 0.4) continue;
             let idx = (col * rows + row) % allChars.length;
             bgChars.push({
                 wx: col * spacingX + random(-6, 6),
                 ry: -riverH / 2 + row * spacingY + random(-4, 4),
                 ch: allChars[idx],
-                alpha: random(25, 55),
+                alpha: random(20, 45),
                 bob: random(0.008, 0.018),
                 bobAmt: random(1, 3)
             });
         }
-    }
-}
-
-
-// ───── 创建意象鱼 ─────
-function createFishes() {
-    fishes = [];
-    let dynMap = {};
-    for (let i = 0; i < dynastyList.length; i++) {
-        dynMap[dynastyList[i].name] = dynastyList[i].t;
-    }
-
-    for (let i = 0; i < poems.length; i++) {
-        let p = poems[i];
-        let t = dynMap[p.dynasty];
-        if (t === undefined) t = 0.5;
-        let wx = 150 + (t + random(-0.04, 0.04)) * (worldW - 300);
-        let fy = riverY + random(-riverH * 0.22, riverH * 0.22);
-
-        fishes.push({
-            poem: p,
-            worldX: wx,
-            y: fy,
-            baseY: fy,
-            swimSpd: random(0.15, 0.4),
-            swimRange: random(15, 40),
-            swimOff: random(1000),
-            bobSpd: random(0.012, 0.025),
-            bobAmt: random(2, 4),
-            caught: false,
-            catching: false,
-            screenX: 0,
-            screenY: 0
-        });
     }
 }
 
@@ -167,11 +205,19 @@ function createFishes() {
 function draw() {
     if (!gameStarted) return;
 
-    // 背景
-    let bgR = lerp(250, 15, bgDark / 255);
-    let bgG = lerp(250, 15, bgDark / 255);
-    let bgB = lerp(248, 35, bgDark / 255);
-    background(bgR, bgG, bgB);
+    // ── 背景：白底+ 全屏染色叠加 ──
+    background(250, 250, 248);
+
+    // 平滑过渡染色
+    bgTint.r = lerp(bgTint.r, targetTint.r, 0.025);
+    bgTint.g = lerp(bgTint.g, targetTint.g, 0.025);
+    bgTint.b = lerp(bgTint.b, targetTint.b, 0.025);
+    bgTint.a = lerp(bgTint.a, targetTint.a, 0.025);
+
+    // 画全屏染色层
+    if (bgTint.a > 1) {
+        drawFullScreenTint();
+    }
 
     updateBoat();
     updateFishPositions();
@@ -182,21 +228,25 @@ function draw() {
     drawFishes();
     drawFishingAnim();
     drawBoat();
+
+    // 特效在最上层
+    drawGlow();
     drawEffectParticles();
     drawMoon();
-    drawUI();drawTimeline();
 
-    //悬停检测
+    drawUI();
+    drawTimeline();
+
     checkHover();
 
     // 特效渐退
     if (activeEffect === '') {
-        bgDark = lerp(bgDark, 0, 0.015);
+        targetTint = { r: 0, g: 0, b: 0, a: 0 };
         moonUp = lerp(moonUp, 0, 0.015);
         umbrella = lerp(umbrella, 0, 0.02);
+        glowPulse = lerp(glowPulse, 0, 0.02);
     }
 
-    // 特效计时
     if (activeEffect !== '') {
         effectTimer--;
         if (effectTimer <= 0) {
@@ -207,16 +257,64 @@ function draw() {
 
 
 // ============================================================
+//   全屏染色 —— 解决白底遮挡
+// ============================================================
+function drawFullScreenTint() {
+    noStroke();
+
+    // 径向渐变：从中心向外
+    let cx = boatX - camX;
+    let cy = riverY - 20;
+    let maxR = max(width, height) * 1.2;
+    let steps = 15;
+
+    for (let i = steps; i >= 0; i--) {
+        let t = i / steps;
+        let r = maxR * t;
+        let a = bgTint.a * (1 - t * t) *0.7;
+        fill(bgTint.r, bgTint.g, bgTint.b, a);
+        ellipse(cx, cy, r * 2, r * 2);
+    }
+
+    // 顶部天空渐变
+    for (let y = 0; y < riverY - riverH / 2; y += 8) {
+        let t = y / (riverY - riverH / 2);
+        let a = bgTint.a * 0.4 * (1 - t);
+        fill(bgTint.r, bgTint.g, bgTint.b, a);
+        rect(0, y, width, 10);
+    }
+}
+
+
+// ============================================================
+//   中心光晕
+// ============================================================
+function drawGlow() {
+    if (glowPulse < 0.5) return;
+
+    let cx = boatX - camX;
+    let cy = riverY - 20;
+    let pulse = sin(frameCount * 0.03) * 0.15 + 1;
+
+    noStroke();
+
+    // 多层光晕
+    for (let i = 5; i >= 0; i--) {
+        let r = (30 + i * 40) * pulse * (glowPulse / 100);
+        let a = (glowPulse * 0.6) * (1 - i / 5);
+        fill(effectAccent.r, effectAccent.g, effectAccent.b, a);
+        ellipse(cx, cy, r, r);
+    }
+}
+
+
+// ============================================================
 //   小船
 // ============================================================
 function updateBoat() {
     if (!fishing) {
-        if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) {
-            boatX -= boatSpd;
-        }
-        if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) {
-            boatX += boatSpd;
-        }
+        if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) boatX -= boatSpd;
+        if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) boatX += boatSpd;
     }
     boatX = constrain(boatX, 80, worldW - 80);
 
@@ -231,23 +329,25 @@ function drawBoat() {
     let bob = sin(frameCount * 0.025) * 3;
     sy += bob;
 
+    let isDark = bgTint.a > 100;
+
     push();
     translate(sx, sy);
 
     // 水纹
-    let waterAlpha = bgDark > 100 ? 60 : 30;
+    let waterAlpha = isDark ? 60 : 30;
     fill(160, 160, 155, waterAlpha);
     textAlign(CENTER, CENTER);
     textSize(10);
     noStroke();
     for (let i = 1; i <= 2; i++) {
-        let wx = sin(frameCount * 0.03+ i) * 4;
+        let wx = sin(frameCount * 0.03 + i) * 4;
         text('〜', -18- i * 14+ wx, 12+ i * 2);
         text('〜', 18 + i * 14 - wx, 12 + i * 2);
     }
 
     // 舟
-    let boatCol = bgDark > 100 ? 200 : 70;
+    let boatCol = isDark ? 220 : 70;
     fill(boatCol, boatCol - 5, boatCol - 15);
     textSize(34);
     text('舟', 0, 0);
@@ -269,17 +369,18 @@ function drawBoat() {
 
 
 // ============================================================
-//   更新鱼的屏幕坐标（每帧计算一次，供悬停和点击用）
+//   更新鱼屏幕坐标
 // ============================================================
 function updateFishPositions() {
     for (let i = 0; i < fishes.length; i++) {
         let f = fishes[i];
         if (f.catching) continue;
 
-        let swim = sin((frameCount * 0.006 * f.swimSpd) + f.swimOff) * f.swimRange;
+        let swim = sin((frameCount * 0.006* f.swimSpd) + f.swimOff) * f.swimRange;
         f.screenX = (f.worldX + swim) - camX;
         f.y = f.baseY + sin(frameCount * f.bobSpd) * f.bobAmt;
-        f.screenY = f.y;}
+        f.screenY = f.y;
+    }
 }
 
 
@@ -289,7 +390,8 @@ function updateFishPositions() {
 function drawBgChars() {
     textAlign(CENTER, CENTER);
     noStroke();
-    let textCol = bgDark > 100 ? 100 : 195;
+    let isDark = bgTint.a > 100;
+    let textCol = isDark ? 140 : 195;
 
     for (let i = 0; i < bgChars.length; i++) {
         let bc = bgChars[i];
@@ -312,6 +414,7 @@ function drawBgChars() {
 function drawFishes() {
     textAlign(CENTER, CENTER);
     noStroke();
+    let isDark = bgTint.a > 100;
 
     for (let i = 0; i < fishes.length; i++) {
         let f = fishes[i];
@@ -328,8 +431,8 @@ function drawFishes() {
 
             // 光圈
             let glowSize = isHover ? 54 : 42;
-            let glowAlpha = isHover ? 40 : 18;
-            let pulse = sin(frameCount * 0.04 + f.swimOff) * 5;
+            let glowAlpha = isHover ? 45 : 20;
+            let pulse = sin(frameCount * 0.04+ f.swimOff) * 5;
             fill(c.r, c.g, c.b, glowAlpha + pulse);
             ellipse(sx, sy, glowSize + pulse, glowSize + pulse);
 
@@ -338,8 +441,7 @@ function drawFishes() {
             fill(c.r, c.g, c.b, 230);
             textSize(fontSize);
             textStyle(BOLD);
-            text(f.poem.keyword, sx, sy);
-            textStyle(NORMAL);
+            text(f.poem.keyword, sx, sy);textStyle(NORMAL);
 
             // 悬停提示
             if (isHover) {
@@ -349,19 +451,20 @@ function drawFishes() {
                 ellipse(sx, sy, 58, 58);
                 noStroke();
 
-                fill(c.r, c.g, c.b, 160);
+                fill(c.r, c.g, c.b, 180);
                 textSize(11);
                 text(f.poem.title, sx, sy - 36);
 
-                fill(c.r, c.g, c.b, 100);
+                fill(c.r, c.g, c.b, 120);
                 textSize(10);
                 text('〔' + f.poem.dynasty + '〕' + f.poem.poet, sx, sy + 36);
             }
         } else {
-            // 已钓过
-            fill(c.r, c.g, c.b, 30);
+            // 已钓过— 更淡
+            fill(c.r, c.g, c.b, isDark ? 40 : 25);
             textSize(14);
-            text(f.poem.keyword, sx, sy);}
+            text(f.poem.keyword, sx, sy);
+        }
     }
 }
 
@@ -372,12 +475,10 @@ function drawFishes() {
 function checkHover() {
     hoveredFish = null;
 
-    //卡片打开时不检测
     if (!document.getElementById('poem-card').classList.contains('hidden')) {
         cursor(ARROW);
         return;
     }
-
     if (fishing) {
         cursor(ARROW);
         return;
@@ -398,7 +499,6 @@ function checkHover() {
             return;
         }
     }
-
     cursor(ARROW);
 }
 
@@ -409,20 +509,15 @@ function checkHover() {
 function mousePressed() {
     if (!gameStarted) return;
 
-    // 时间轴拖动
     if (mouseY > height - 50) {
         tlDrag = true;
         doTlDrag();
         return;
     }
 
-    //卡片打开时不触发
     if (!document.getElementById('poem-card').classList.contains('hidden')) return;
-
-    // 正在钓鱼时不触发
     if (fishing) return;
 
-    // 点击鱼
     if (hoveredFish) {
         startFishing(hoveredFish);}
 }
@@ -439,30 +534,25 @@ function doTlDrag() {
     let tlL = 80;
     let tlR = width - 80;
     let t = constrain((mouseX - tlL) / (tlR - tlL), 0, 1);
-    boatX = 150 + t * (worldW - 300);
+    boatX = 200 + t * (worldW - 400);
 }
 
 
-// ───── 开始钓鱼 ─────
+// ───── 钓鱼 ─────
 function startFishing(fish) {
     fishing = true;
     fishTarget = fish;
     fish.catching = true;
     fishLineProgress = 0;
-
-    // 气泡
-    addEffect(fish.screenX, fish.screenY, 'bubble',6);
+    addEffect(fish.screenX, fish.screenY,'bubble',6);
 }
 
-
-// ───── 更新钓鱼动画 ─────
 function updateFishing2() {
     if (!fishing || !fishTarget) return;
 
     fishLineProgress += 0.015;
 
     if (fishLineProgress >= 2) {
-        // 完成
         fishing = false;
         fishTarget.caught = true;
         fishTarget.catching = false;
@@ -472,7 +562,7 @@ function updateFishing2() {
         }
 
         showPoemCard(fishTarget.poem);
-        triggerEffect(fishTarget.poem.effect);
+        triggerEffect(fishTarget.poem.effect, fishTarget.poem.color);
 
         let sx = boatX - camX;
         addEffect(sx, riverY - 20, 'bubble', 10);
@@ -481,25 +571,21 @@ function updateFishing2() {
     }
 }
 
-
-// ───── 画钓鱼动画 ─────
 function drawFishingAnim() {
     if (!fishing || !fishTarget) return;
 
     let bsx = boatX - camX;
     let bsy = riverY - 40+ sin(frameCount * 0.025) * 3;
 
-    //鱼的位置
     let swim = sin((frameCount * 0.006 * fishTarget.swimSpd) + fishTarget.swimOff) * fishTarget.swimRange;
     let fx = (fishTarget.worldX + swim) - camX;
     let fy = fishTarget.baseY;
 
     let c = hexToRgb(fishTarget.poem.color);
-    let isDark = bgDark > 100;
+    let isDark = bgTint.a > 100;
     let lineCol = isDark ? 180 : 120;
 
     if (fishLineProgress < 1) {
-        //阶段1：鱼线从船伸向鱼
         let t = fishLineProgress;
         let curX = lerp(bsx, fx, t);
         let curY = lerp(bsy, fy, t);
@@ -513,15 +599,12 @@ function drawFishingAnim() {
         textSize(11);
         text('钩', curX, curY);
 
-        // 鱼在原位
         fill(c.r, c.g, c.b, 220);
         textSize(24);
         textStyle(BOLD);
         text(fishTarget.poem.keyword, fx, fy);
         textStyle(NORMAL);
-
     } else {
-        // 阶段2：鱼被拉回船
         let t = fishLineProgress - 1;
         let curX = lerp(fx, bsx, t);
         let curY = lerp(fy, bsy - 10, t);
@@ -547,82 +630,121 @@ function drawFishingAnim() {
 
 
 // ============================================================
-//   特效系统
+//   特效系统 —— 全新：强染色 + 大粒子
 // ============================================================
-function triggerEffect(name) {
+function triggerEffect(name, poemColor) {
     activeEffect = name;
-    effectTimer = 360;
+    effectTimer = 400;
 
+    let pc = hexToRgb(poemColor);
+    effectAccent = { r: pc.r, g: pc.g, b: pc.b };
+
+    // 每种特效都有强烈的全屏染色
     switch (name) {
         case 'moon':
-            bgDark = 200;
+            targetTint = { r: 15, g: 15, b: 40, a: 200 };
             moonUp = 1;
+            glowPulse = 80;
             break;
+
         case 'flower':
         case 'spring':
-            for (let i = 0; i < 50; i++)
-                addEffect(random(width), random(-80, -10), 'flower', 1);
+            targetTint = { r: 255, g: 220, b: 220, a: 120 };
+            glowPulse = 50;
+            for (let i = 0; i < 80; i++)
+                addEffect(random(width), random(-120, -10), 'flower', 1);
             break;
+
         case 'rain':
-            bgDark = 80;
+            targetTint = { r: 60, g: 80, b: 100, a: 160 };
             umbrella = 1;
-            for (let i = 0; i < 100; i++)
+            glowPulse = 30;
+            for (let i = 0; i < 150; i++)
                 addEffect(random(width), random(-height, 0), 'rain', 1);
             break;
+
         case 'snow':
-            bgDark = 50;
-            for (let i = 0; i < 60; i++)
-                addEffect(random(width), random(-80, -10), 'snow', 1);
+            targetTint = { r: 180, g: 195, b: 220, a: 100 };
+            glowPulse = 40;
+            for (let i = 0; i < 80; i++)
+                addEffect(random(width), random(-120, -10), 'snow', 1);
             break;
+
         case 'wind':
-            for (let i = 0; i < 40; i++)
-                addEffect(-30, random(height * 0.2, height * 0.7), 'wind', 1);
+            targetTint = { r: 200, g: 220, b: 230, a: 80 };
+            glowPulse = 35;
+            for (let i = 0; i < 60; i++)
+                addEffect(-50, random(height * 0.15, height * 0.75), 'wind', 1);
             break;
+
         case 'autumn':
         case 'willow':
-            bgDark = 30;
-            for (let i = 0; i < 40; i++)
-                addEffect(random(width), random(-60, -10), 'leaf', 1);
+            targetTint = { r: 200, g: 160, b: 80, a: 100 };
+            glowPulse = 40;
+            for (let i = 0; i < 60; i++)
+                addEffect(random(width), random(-80, -10), 'leaf', 1);
             break;
+
         case 'star':
-            bgDark = 180;
-            for (let i = 0; i < 50; i++)
-                addEffect(random(width), random(20, height * 0.4), 'star', 1);
+            targetTint = { r: 10, g: 10, b: 35, a: 210 };
+            glowPulse = 60;
+            for (let i = 0; i < 70; i++)
+                addEffect(random(width), random(20, height * 0.45), 'star', 1);
             break;
+
         case 'dream':
         case 'wine':
-            bgDark = 120;
-            for (let i = 0; i < 30; i++)
+            targetTint = { r: 60, g: 30, b: 80, a: 170 };
+            glowPulse = 70;
+            for (let i = 0; i < 50; i++)
                 addEffect(random(width), random(height), 'dream', 1);
             break;
+
         case 'sword':
-            for (let i = 0; i < 8; i++)
-                addEffect(random(width * 0.2, width * 0.8), random(50, height * 0.3), 'sword', 1);
+            targetTint = { r: 40, g: 40, b: 50, a: 140 };
+            glowPulse = 90;
+            for (let i = 0; i < 12; i++)
+                addEffect(random(width * 0.15, width * 0.85), random(40, height * 0.35), 'sword', 1);
             break;
+
         case 'water':
-            for (let i = 0; i < 25; i++)
-                addEffect(random(width), riverY + random(-30, 30), 'bubble', 1);
-            break;case 'bird':
-            for (let i = 0; i < 10; i++)
-                addEffect(random(-50, 0), random(50, height * 0.35), 'bird', 1);
+            targetTint = { r: 100, g: 160, b: 200, a: 90 };
+            glowPulse = 45;
+            for (let i = 0; i < 40; i++)
+                addEffect(random(width), riverY + random(-40, 40), 'bubble', 1);
             break;
+
+        case 'bird':
+            targetTint = { r: 220, g: 200, b: 170, a: 70 };
+            glowPulse = 30;
+            for (let i = 0; i < 15; i++)
+                addEffect(random(-80, 0), random(40, height * 0.4), 'bird', 1);
+            break;
+
         case 'mountain':
-            bgDark = 30;
+            targetTint = { r: 80, g: 100, b: 80, a: 80 };
+            glowPulse = 25;
+            break;
+
+        default:
+            // 未知特效也给淡染色
+            targetTint = { r: pc.r, g: pc.g, b: pc.b, a: 60 };
+            glowPulse = 30;
             break;
     }
 }
 
+
 function addEffect(x, y, type, count) {
     for (let i = 0; i < count; i++) {
         let p = {
-            x: x + random(-8, 8),
-            y: y + random(-8, 8),
+            x: x + random(-10, 10),
+            y: y + random(-10, 10),
             type: type,
             life: 300,
             maxLife: 300,
-            vx: 0,
-            vy: 0,
-            size: 14,
+            vx: 0, vy: 0,
+            size: 16,
             rot: random(TWO_PI),
             char: '',
             col: [150, 150, 150]
@@ -630,82 +752,77 @@ function addEffect(x, y, type, count) {
 
         switch (type) {
             case 'bubble':
-                p.vy = random(-2, -0.5);
-                p.vx = random(-0.3, 0.3);
-                p.life = 60;
-                p.maxLife = 60;
+                p.vy = random(-2.5, -0.5);
+                p.vx = random(-0.4, 0.4);
+                p.life = 70; p.maxLife = 70;
                 p.char = '。';
-                p.size = random(8, 14);
-                p.col = [120, 140, 160];
+                p.size = random(10, 18);
+                p.col = [140, 170, 200];
                 break;
             case 'flower':
-                p.vy = random(0.8, 2.0);
-                p.vx = random(-1, 1);
-                p.char = random(['花', '瓣', '落', '飞', '红', '粉']);
-                p.col = [199, 92, 92];
-                p.size = random(12, 20);
+                p.vy = random(0.6, 2.2);
+                p.vx = random(-1.5, 1.5);
+                p.char = random(['花', '瓣', '落', '飞', '红', '粉', '樱', '桃']);
+                p.col = [220, 100, 110];
+                p.size = random(16, 26);
                 break;
             case 'rain':
-                p.vy = random(5, 10);
-                p.vx = random(-0.5, 0.5);
+                p.vy = random(6, 12);
+                p.vx = random(-0.8, 0.8);
                 p.char = '雨';
-                p.col = [74, 143, 168];
-                p.size = random(12, 18);
-                p.life = 200;
-                p.maxLife = 200;
+                p.col = [100, 160, 200];
+                p.size = random(14, 22);
+                p.life = 240; p.maxLife = 240;
                 break;
             case 'snow':
-                p.vy = random(0.4, 1.5);
-                p.vx = random(-0.5, 0.5);
-                p.char = random(['雪', '霜', '冰', '寒', '白']);
-                p.col = [140, 155, 175];
-                p.size = random(12, 18);
-                break;
-            case 'wind':
-                p.vx = random(4, 9);
-                p.vy = random(-0.5, 0.5);
-                p.char = random(['风', '吹', '飘', '动']);
-                p.col = [120, 150, 170];
-                p.size = random(14, 20);
-                break;
-            case 'leaf':
-                p.vy = random(0.6, 1.8);
-                p.vx = random(-1.2, 1.2);
-                p.char = random(['叶', '落', '枫', '柳', '黄']);
-                p.col = [184, 134, 74];
-                p.size = random(13, 19);
-                break;
-            case 'star':
-                p.vy = 0;
-                p.vx = 0;
-                p.char = random(['星', '辰', '光', '亮', '✦']);
-                p.col = [200, 190, 100];
-                p.size = random(12, 22);
-                p.life = 250;
-                p.maxLife = 250;
-                break;
-            case 'dream':
-                p.vy = random(-0.6, 0.6);
+                p.vy = random(0.3, 1.6);
                 p.vx = random(-0.6, 0.6);
-                p.char = random(['梦', '幻', '蝶', '影', '迷', '醉']);
-                p.col = [155, 120, 190];
+                p.char = random(['雪', '霜', '冰', '寒', '白', '凝']);
+                p.col = [200, 210, 230];
                 p.size = random(14, 22);
                 break;
-            case 'sword':
-                p.vy = random(3, 7);
-                p.vx = random(-1, 1);
-                p.char = random(['剑', '刃', '锋', '斩']);
-                p.col = [160, 165, 180];
+            case 'wind':
+                p.vx = random(4, 10);
+                p.vy = random(-0.8, 0.8);
+                p.char = random(['风', '吹', '飘', '动', '拂']);
+                p.col = [140, 170, 195];
                 p.size = random(16, 24);
-                p.life = 80;
-                p.maxLife = 80;
+                break;
+            case 'leaf':
+                p.vy = random(0.5, 2.0);
+                p.vx = random(-1.5, 1.5);
+                p.char = random(['叶', '落', '枫', '柳', '黄', '萧']);
+                p.col = [200, 150, 80];
+                p.size = random(16, 24);
+                break;
+            case 'star':
+                p.vy = 0; p.vx = 0;
+                p.char = random(['星', '辰', '光', '亮', '✦', '☆']);
+                p.col = [220, 210, 120];
+                p.size = random(14, 28);
+                p.life = 280; p.maxLife = 280;
+                break;
+            case 'dream':
+                p.vy = random(-0.8, 0.8);
+                p.vx = random(-0.8, 0.8);
+                p.char = random(['梦', '幻', '蝶', '影', '迷', '醉', '烟']);
+                p.col = [180, 140, 220];
+                p.size = random(16, 28);
+                break;
+            case 'sword':
+                p.vy = random(3, 8);
+                p.vx = random(-1.5, 1.5);
+                p.char = random(['剑', '刃', '锋', '斩', '戈']);
+                p.col = [190, 195, 210];
+                p.size = random(20, 30);
+                p.life = 90; p.maxLife = 90;
                 break;
             case 'bird':
-                p.vx = random(2, 5);
-                p.vy = random(-1, 0.5);
-                p.char = random(['鸟', '雀', '鸣', '飞', '翔']);
-                p.col = [120, 100, 75];
-                p.size = random(14, 20);
+                p.vx = random(2, 6);
+                p.vy = random(-1.2, 0.5);
+                p.char = random(['鸟', '雀', '鸣', '飞', '翔', '燕']);
+                p.col = [140, 120, 90];
+                p.size = random(16, 24);
                 break;
         }
         effects.push(p);
@@ -713,25 +830,36 @@ function addEffect(x, y, type, count) {
 }
 
 function updateEffects() {
+    // 持续补充粒子
     if (activeEffect ==='rain' && frameCount % 2 === 0)
-        addEffect(random(width), -10, 'rain', 3);
-    if (activeEffect === 'snow' && frameCount % 5 === 0)
-        addEffect(random(width), -10, 'snow', 1);
-    if ((activeEffect === 'flower' || activeEffect === 'spring') && frameCount % 8 === 0)
-        addEffect(random(width), -10, 'flower', 1);
-    if (activeEffect === 'wind' && frameCount % 4 === 0)
-        addEffect(-30, random(height * 0.2, height * 0.7), 'wind', 1);
-    if (activeEffect === 'bird' && frameCount % 15 === 0)
-        addEffect(-30, random(50, height * 0.35), 'bird', 1);
+        addEffect(random(width), -10, 'rain', 4);
+    if (activeEffect === 'snow' && frameCount % 4 === 0)
+        addEffect(random(width), -10, 'snow', 2);
+    if ((activeEffect === 'flower' || activeEffect === 'spring') && frameCount % 6 === 0)
+        addEffect(random(width), -10, 'flower', 2);
+    if (activeEffect === 'wind' && frameCount % 3 === 0)
+        addEffect(-50, random(height * 0.15, height * 0.75), 'wind', 1);
+    if (activeEffect === 'bird' && frameCount % 12 === 0)
+        addEffect(-50, random(50, height * 0.4), 'bird', 1);
+    if (activeEffect === 'star' && frameCount % 20 === 0)
+        addEffect(random(width), random(20, height * 0.45), 'star', 1);
+    if ((activeEffect === 'dream' || activeEffect === 'wine') && frameCount % 8 === 0)
+        addEffect(random(width), random(height), 'dream', 1);
+    if ((activeEffect === 'autumn' || activeEffect === 'willow') && frameCount % 8 === 0)
+        addEffect(random(width), -10, 'leaf', 1);
 
     for (let i = effects.length - 1; i >= 0; i--) {
         let e = effects[i];
         e.x += e.vx;
         e.y += e.vy;
-        if (e.type === 'leaf' || e.type === 'flower') e.rot += 0.015;
-        if (e.type === 'snow') e.x += sin(frameCount * 0.02 + i) * 0.3;
+        if (e.type === 'leaf' || e.type === 'flower') e.rot += 0.02;
+        if (e.type === 'snow') e.x += sin(frameCount * 0.02 + i) * 0.4;
+        if (e.type === 'dream') {
+            e.x += sin(frameCount * 0.015 + i * 0.3) * 0.5;
+            e.y += cos(frameCount * 0.012 + i * 0.4) * 0.3;
+        }
         e.life--;
-        if (e.life <= 0 || e.y > height + 30|| e.x > width + 60) {
+        if (e.life <= 0 || e.y > height + 40|| e.x > width + 80) {
             effects.splice(i, 1);
         }
     }
@@ -740,11 +868,19 @@ function updateEffects() {
 function drawEffectParticles() {
     textAlign(CENTER, CENTER);
     noStroke();
+
     for (let i = 0; i < effects.length; i++) {
         let e = effects[i];
-        let alpha = map(e.life, 0, e.maxLife * 0.3, 0, 255);
+        let alpha = map(e.life, 0, e.maxLife * 0.25, 0, 255);
         alpha = min(alpha, 255);
+
+        // 星星闪烁
+        if (e.type === 'star') {
+            alpha *= (sin(frameCount * 0.06 + i * 2) * 0.3 + 0.7);
+        }
+
         fill(e.col[0], e.col[1], e.col[2], alpha);
+
         push();
         translate(e.x, e.y);
         if (e.type === 'flower' || e.type === 'leaf') rotate(e.rot);
@@ -761,27 +897,32 @@ function drawEffectParticles() {
 function drawMoon() {
     if (moonUp < 0.03) return;
 
-    let mx = width * 0.8;
+    let mx = width * 0.78;
     let my = lerp(riverY, height * 0.12, moonUp);
 
     noStroke();
-    fill(200, 160, 20, moonUp * 15);
-    ellipse(mx, my, 180, 180);
-    fill(210, 170, 30, moonUp * 25);
-    ellipse(mx, my, 100, 100);
 
-    fill(210, 170, 30, moonUp * 240);
+    // 大光晕
+    fill(230, 200, 60, moonUp * 12);
+    ellipse(mx, my, 220, 220);
+    fill(235, 210, 70, moonUp * 20);
+    ellipse(mx, my, 130, 130);
+    fill(240, 215, 80, moonUp * 35);
+    ellipse(mx, my, 80, 80);
+
+    // 月字
+    fill(240, 220, 80, moonUp * 240);
     textAlign(CENTER, CENTER);
-    textSize(44);
+    textSize(48);
     text('月', mx, my);
 
-    //倒影
+    // 倒影
     let refY = riverY + (riverY - my) * 0.25;
     if (refY < riverY + riverH / 2) {
-        fill(210, 170, 30, moonUp * 30);
-        textSize(30);
+        fill(240, 220, 80, moonUp * 35);
+        textSize(32);
         push();
-        translate(mx + sin(frameCount * 0.02) * 3, refY);
+        translate(mx + sin(frameCount * 0.02) * 4, refY);
         scale(1, -0.5);
         text('月', 0, 0);
         pop();
@@ -793,8 +934,8 @@ function drawMoon() {
 //   UI
 // ============================================================
 function drawUI() {
-    let isDark = bgDark > 80;
-    let tc = isDark ? 210 : 80;
+    let isDark = bgTint.a > 100;
+    let tc = isDark ? 220 : 80;
 
     noStroke();
     fill(tc, tc, tc - 5, isDark ? 200 : 120);
@@ -803,21 +944,18 @@ function drawUI() {
     textStyle(NORMAL);
     text('诗 词意 象 河 流', width / 2,30);
 
-    // 当前朝代
     let curDyn = getDynasty();
     fill(tc, tc, tc - 5, isDark ? 140 : 80);
     textSize(12);
     text(curDyn, width / 2, 50);
 
-    // 操作提示
     if (!fishing) {
         let blink = sin(frameCount * 0.04) * 0.3 + 0.7;
-        fill(tc, tc, tc - 5, 35* blink);
+        fill(tc, tc, tc - 5,40* blink);
         textSize(11);
         text('点击河中彩色字垂钓 ｜ ← →泛舟', width / 2, riverY + riverH / 2 + 35);
     }
 
-    // 收藏计数
     fill(tc, tc, tc - 5, isDark ? 120 : 70);
     textAlign(LEFT, CENTER);
     textSize(11);
@@ -825,7 +963,7 @@ function drawUI() {
 }
 
 function getDynasty() {
-    let t = (boatX - 150) / (worldW - 300);
+    let t = (boatX - 200) / (worldW - 400);
     t = constrain(t, 0, 1);
     let best = '唐';
     let bestDist = 999;
@@ -847,8 +985,8 @@ function drawTimeline() {
     let tlL = 80;
     let tlR = width - 80;
     let tlY = height - 28;
-    let isDark = bgDark > 80;
-    let lc = isDark ? 120 : 200;
+    let isDark = bgTint.a > 100;
+    let lc = isDark ? 140 : 200;
 
     stroke(lc, lc, lc - 5, 50);
     strokeWeight(1);
@@ -856,7 +994,7 @@ function drawTimeline() {
     noStroke();
 
     textAlign(CENTER, CENTER);
-    let boatT = (boatX - 150) / (worldW - 300);
+    let boatT = (boatX - 200) / (worldW - 400);
 
     for (let i = 0; i < dynastyList.length; i++) {
         let d = dynastyList[i];
@@ -867,8 +1005,8 @@ function drawTimeline() {
         line(x, tlY - 3, x, tlY + 3);
         noStroke();
 
-        let isActive = abs(d.t - boatT) < 0.06;
-        let ac = isDark ? 200 : 80;
+        let isActive = abs(d.t - boatT) < 0.07;
+        let ac = isDark ? 220 : 80;
         let ic = isDark ? 100 : 170;
         fill(
             isActive ? ac : ic,
@@ -880,10 +1018,9 @@ function drawTimeline() {
         text(d.name, x, tlY + 16);
     }
 
-    // 手柄
     let handleT = constrain(boatT, 0, 1);
     let hx = tlL + handleT * (tlR - tlL);
-    let hc = isDark ? 180 : 100;
+    let hc = isDark ? 200 : 100;
     fill(hc, hc, hc - 10, 200);
     noStroke();
     triangle(hx - 4, tlY - 5, hx + 4, tlY - 5, hx, tlY);
@@ -923,7 +1060,7 @@ function showPoemCard(poem) {
 //   键盘
 // ============================================================
 function keyPressed() {
-    if (keyCode === 37 || keyCode === 38 || keyCode === 39 || keyCode === 40 || keyCode === 32) {
+    if (keyCode === 37|| keyCode === 38|| keyCode === 39 || keyCode === 40 || keyCode === 32) {
         return false;
     }
 }
