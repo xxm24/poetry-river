@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>诗词意象河流</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body><div id="start-screen">
+        <div id="start-content">
+            <div class="start-title">诗 词 意 象 河 流</div>
+            <div class="start-verse">大漠孤烟直，长河落日圆</div>
+            <button id="start-btn">泛 舟</button>
+            <div class="start-hint">← → 移动｜ 点击河中彩色字垂钓</div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="poem-card" class="hidden">
+        <div id="card-inner">
+            <div id="card-keyword-wrap">
+                <span id="card-keyword"></span>
+            </div>
+            <div id="card-poem"></div>
+            <div id="card-meta"></div>
+            <div id="card-translation"></div>
+            <div id="card-stats">
+                <div class="stat-item">
+                    <span class="stat-label">出现频次</span>
+                    <span class="stat-value" id="card-freq"></span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">情绪</span>
+                    <span class="stat-value" id="card-emotion"></span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">意象色</span>
+                    <div class="stat-color" id="card-color-dot"></div>
+                </div></div>
+            <button id="card-close">收</button>
+        </div>
+    </div>
+
+    <script src="sketch.js"></script>
+</body>
+</html>
