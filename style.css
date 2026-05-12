@@ -132,7 +132,7 @@ body {
 #card-image-wrap {
     position: absolute;
     inset: 0;
-    z-index: 0;
+    z-index: -1;
     display: none;
     overflow: hidden;
     border-radius: 20px;
