@@ -53,8 +53,69 @@ let activeEffect = '';
 let effectTimer = 0;
 let effectAccent = { r: 120, g: 120, b: 120 };
 
+const promptVariants = {
+    moon: [
+        '中心放置一轮明月，水面反射出月华，远方云海轻起，画面整体简洁优雅，避免左上角梅花和右侧远山。',
+        '画面中心为明月与江水交融，右侧以柔和水面为主，左侧不出现梅花突出留白诗意。'
+    ],
+    flower: [
+        '中心为盛放桃花/荷花的特写，花瓣翻飞、墨色溶染，画面结构不重复，远景不出现右侧远山。',
+        '以花簇为中心展开，构图紧凑，中间空间保留出深浅墨色变化，避免重复上方梅花构图。'
+    ],
+    rain: [
+        '中心为细雨中的行人或桥上伞影，雨滴和水纹构成画面节奏，避免左上角梅花与右边远山的固定结构。',
+        '画面主体为雨中行人和雨丝，风格淡雅，构图以中央垂直雨帘为主。'
+    ],
+    wine: [
+        '中心为酒杯烟雾与灯影，周围如画卷般渗开的墨色，远景不出现同一侧远山，避免固定重复。',
+        '画面主体为明灯与酒杯，酒气氤氲，构图以中心光点为重心。'
+    ],
+    snow: [
+        '中心为雪中孤舟、裸树或松枝，雪花飘落细腻，画面整体空灵，避免左上角梅花与右侧远山。',
+        '以雪覆盖轮廓为主体，中间突显孤寂与洁白，构图不靠右侧远山展开。'
+    ],
+    wind: [
+        '中心为飞舞的柳絮/旗帜，风动笔触贯穿画面，构图呈现动感，避免重复左上和右下固定视角。',
+        '以风吹动的枝条为核心，墨色流动，整体构图集中于画面中央。'
+    ],
+    mountain: [
+        '中心为一座主峰，云雾环绕，画面以主峰为焦点，避免出现右侧远山的重复元素。',
+        '构图以峰峦起伏为主，强调中央山势，周边留白呼应诗意。'
+    ],
+    willow: [
+        '中心为垂柳与小桥，柳丝如笔墨垂落，画面层次分明，避免左上梅花重复场景。',
+        '将垂柳置于画面中心，水墨轻摇，构图以柳枝与水面互动为主。'
+    ],
+    dream: [
+        '中心为蝶梦与云烟，画面如梦似幻，中间主体明确，避免传统山水右远山。',
+        '以梦境般的蝶影和蝴蝶结晶为中心，墨色柔和，突出梦意氛围。'
+    ],
+    water: [
+        '中心为奔流的江水或瀑布，水流动感强，构图集中于水势，避免固定山水右侧元素。',
+        '以水流为主景，中央水波涌动，画面具有诗意动势。'
+    ],
+    autumn: [
+        '中心为枯藤、老树与落叶，秋意浓重，画面主线突出，避免复用梅花远山。',
+        '以秋天的枯树与桥为主体，淡墨描绘秋风，构图不固定。'
+    ],
+    bird: [
+        '中心为飞鸟或栖枝，鸟影环绕，构图空灵，避免同一侧梅花特写。',
+        '以飞鸟穿过画面中央为主，背景淡墨渲染，节奏感强。'
+    ],
+    star: [
+        '中心为夜空星辰与楼阁，星光柔和，画面主体明晰，避免右侧山势重复。',
+        '以星空为主场景，夜色与月光交织，构图不靠单一远山。'
+    ],
+    default: [
+        '中心主体明确，画面构图避免固定左上梅花与右侧远山，保留古典水墨的自然变化。'
+    ]
+};
+
 // 悬停
 let hoveredFish = null;
+let poemImageCache = {};
+let preloadStatusEl = null;
+let preloadProgress = { current: 0, total: 0, running: false };
 
 
 // ───── preload ─────
@@ -102,6 +163,10 @@ function setup() {
         const imageEl = document.getElementById('card-image');
         imageEl.src = '';
     });
+
+    createPreloadStatus();
+    loadCachedPoemImages();
+    preloadAllImages();
 }
 
 
@@ -1079,8 +1144,94 @@ function showPoemCard(poem) {
     generatePoemIllustration(poem);
 }
 
+function createPreloadStatus() {
+    preloadStatusEl = document.createElement('div');
+    preloadStatusEl.id = 'preload-status';
+    preloadStatusEl.textContent = '正在准备意象图缓存...';
+    document.body.appendChild(preloadStatusEl);
+}
+
+function loadCachedPoemImages() {
+    try {
+        const cache = localStorage.getItem('poemImageCache');
+        if (cache) {
+            poemImageCache = JSON.parse(cache);
+            console.log('Loaded cached poem images:', Object.keys(poemImageCache).length);
+        }
+    } catch (err) {
+        console.warn('Failed to load poem image cache:', err);
+        poemImageCache = {};
+    }
+}
+
+function saveCachedPoemImages() {
+    try {
+        localStorage.setItem('poemImageCache', JSON.stringify(poemImageCache));
+    } catch (err) {
+        console.warn('Failed to save poem image cache:', err);
+    }
+}
+
+async function preloadAllImages() {
+    if (preloadProgress.running) return;
+    preloadProgress.total = poems.length;
+    preloadProgress.current = 0;
+    preloadProgress.running = true;
+    updatePreloadStatus();
+
+    for (const poem of poems) {
+        if (poemImageCache[poem.id]) {
+            preloadProgress.current++;
+            updatePreloadStatus();
+            continue;
+        }
+
+        const imageData = await generateImageForPoem(poem);
+        if (imageData) {
+            poemImageCache[poem.id] = imageData;
+            saveCachedPoemImages();
+        }
+        preloadProgress.current++;
+        updatePreloadStatus();
+        await new Promise(resolve => setTimeout(resolve, 1200));
+    }
+
+    preloadProgress.running = false;
+    preloadStatusEl.textContent = '全部意象图已开始生成，并已缓存。';
+}
+
+function updatePreloadStatus() {
+    if (!preloadStatusEl) return;
+    preloadStatusEl.textContent = `正在后台生成全部意象图：${preloadProgress.current}/${preloadProgress.total}`;
+}
+
+async function generateImageForPoem(poem) {
+    try {
+        const prompt = buildImagePrompt(poem);
+        const resp = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+        });
+        if (!resp.ok) {
+            if (resp.status === 429) {
+                console.warn('API 限流，等待重试', poem.id);
+                await new Promise(resolve => setTimeout(resolve, 6000));
+                return generateImageForPoem(poem);
+            }
+            console.warn('生成预览图失败', poem.id, resp.status);
+            return null;
+        }
+        const data = await resp.json();
+        return data.imageData;
+    } catch (err) {
+        console.error('generateImageForPoem 错误', err);
+        await new Promise(resolve => setTimeout(resolve, 6000));
+        return null;
+    }
+}
+
 async function generatePoemIllustration(poem) {
-    const prompt = buildImagePrompt(poem);
     const imageEl = document.getElementById('card-image');
     const videoEl = document.getElementById('card-video');
     const placeholder = document.getElementById('card-image-placeholder');
@@ -1095,6 +1246,22 @@ async function generatePoemIllustration(poem) {
     videoEl.style.display = 'none';
     placeholder.style.display = 'flex';
     placeholder.textContent = '正在生成意象画面，请稍候……';
+
+    const cacheData = poemImageCache[poem.id];
+    if (cacheData) {
+        imageEl.onload = () => {
+            placeholder.style.display = 'none';
+            imageEl.style.display = 'block';
+        };
+        imageEl.onerror = () => {
+            placeholder.textContent = '缓存图片加载失败，请刷新或重试。';
+            imageEl.style.display = 'none';
+        };
+        imageEl.src = cacheData;
+        return;
+    }
+
+    const prompt = buildImagePrompt(poem);
 
     try {
         const resp = await fetch('/api/generate-image', {
@@ -1149,7 +1316,10 @@ async function generatePoemIllustration(poem) {
 }
 
 function buildImagePrompt(poem) {
-    return `动态水墨画风，请根据诗词意象“${poem.keyword}”生成一幅古典水墨插画，内容结合以下诗句：${poem.poem}。画面主体居中，呈现淡墨云雾、飞花流水、氤氲山水和诗词意境，整体氛围清雅空灵，适合作为卡片顶部主体插图。`;
+    const key = poem.effect || poem.keyword || 'default';
+    const variants = promptVariants[key] || promptVariants.default;
+    const variant = variants[poem.id % variants.length];
+    return `动态水墨画风，请根据诗词意象“${poem.keyword}”生成一幅古典水墨插画，内容结合以下诗句：${poem.poem}。${variant} 使用明朝/宋体书法笔触，不要重复左上角梅花和右侧远山的固定构图。画面主体居中，强调独特构图与诗意氛围。`;
 }
 
 
