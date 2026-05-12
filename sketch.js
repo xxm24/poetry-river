@@ -1087,9 +1087,13 @@ async function generatePoemIllustration(poem) {
     const imageWrap = document.getElementById('card-image-wrap');
 
     imageWrap.classList.remove('hidden');
+    imageWrap.style.display = 'flex';
+    imageWrap.style.justifyContent = 'center';
+    imageWrap.style.alignItems = 'center';
+    imageWrap.style.minHeight = '260px';
     imageEl.style.display = 'none';
     videoEl.style.display = 'none';
-    placeholder.style.display = 'block';
+    placeholder.style.display = 'flex';
     placeholder.textContent = '正在生成意象画面，请稍候……';
 
     try {
