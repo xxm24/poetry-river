@@ -14,105 +14,32 @@ app.post('/api/generate-image', async (req, res) => {
     }
 
     try {
-        const apiKey = process.env.DASHSCOPE_API_KEY;
-        if (!apiKey) {
-            return res.status(500).json({ error: 'DashScope API key 未配置' });
-        }
+        // 使用优化的pollinations.ai API生成水墨画风格图片
+        const enhancedPrompt = `${prompt}，传统中国水墨画风格，山水画，诗意，淡墨渲染，氤氲云雾，古典美学，书法笔触`;
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=1024&height=1024&style=watercolor&model=flux`;
 
-        // 使用阿里云DashScope API生成水墨画 (异步调用)
-        const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'X-DashScope-SSE': 'enable'  // 启用SSE以支持异步调用
-            },
-            body: JSON.stringify({
-                model: 'wanx-v1',
-                input: {
-                    prompt: `${prompt}，水墨画风格，传统中国水墨画，山水画，诗意`,
-                    negative_prompt: 'low quality, blurry, distorted, ugly, poorly drawn, cartoon, anime, manga'
-                },
-                parameters: {
-                    style: '<chinese painting>',
-                    size: '1024*1024',
-                    n: 1
-                }
-            })
-        });
+        console.log('Generating image with prompt:', enhancedPrompt);
 
+        const response = await fetch(url);
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('DashScope API error:', response.status, errorText);
-            return res.status(response.status).json({ error: `API请求失败: ${response.status} ${errorText}` });
+            const text = await response.text();
+            console.error('Pollinations API error:', response.status, text);
+            return res.status(response.status).json({ error: text });
         }
 
-        const data = await response.json();
-        console.log('DashScope response:', JSON.stringify(data, null, 2));
-
-        // 检查是否有task_id，说明是异步任务
-        if (data.output && data.output.task_id) {
-            // 异步任务，需要轮询结果
-            const taskId = data.output.task_id;
-            let attempts = 0;
-            const maxAttempts = 30; // 最多等待30次
-
-            while (attempts < maxAttempts) {
-                await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒
-
-                const statusResponse = await fetch(`https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`
-                    }
-                });
-
-                if (statusResponse.ok) {
-                    const statusData = await statusResponse.json();
-                    console.log('Task status:', statusData);
-
-                    if (statusData.output && statusData.output.task_status === 'SUCCEEDED' && statusData.output.results && statusData.output.results.length > 0) {
-                        const imageUrl = statusData.output.results[0].url;
-                        // 获取图片数据
-                        const imageResponse = await fetch(imageUrl);
-                        if (!imageResponse.ok) {
-                            return res.status(500).json({ error: '无法获取生成的图片' });
-                        }
-
-                        const buffer = await imageResponse.arrayBuffer();
-                        const base64 = Buffer.from(buffer).toString('base64');
-                        const contentType = imageResponse.headers.get('content-type') || 'image/png';
-
-                        return res.json({ imageData: `data:${contentType};base64,${base64}` });
-                    } else if (statusData.output && statusData.output.task_status === 'FAILED') {
-                        return res.status(500).json({ error: '图片生成失败' });
-                    }
-                }
-
-                attempts++;
-            }
-
-            return res.status(500).json({ error: '图片生成超时' });
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.startsWith('image/')) {
+            const text = await response.text();
+            console.error('Unexpected response type:', contentType, text);
+            return res.status(500).json({ error: 'Unexpected API response: ' + contentType + ' ' + text.substring(0, 200) });
         }
 
-        // 如果直接返回结果（同步模式）
-        if (data.output && data.output.results && data.output.results.length > 0) {
-            const imageUrl = data.output.results[0].url;
-            // 获取图片数据
-            const imageResponse = await fetch(imageUrl);
-            if (!imageResponse.ok) {
-                return res.status(500).json({ error: '无法获取生成的图片' });
-            }
-
-            const buffer = await imageResponse.arrayBuffer();
-            const base64 = Buffer.from(buffer).toString('base64');
-            const contentType = imageResponse.headers.get('content-type') || 'image/png';
-
-            return res.json({ imageData: `data:${contentType};base64,${base64}` });
-        } else {
-            return res.status(500).json({ error: 'API未返回图片结果' });
-        }
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        console.log('Image generated successfully, size:', buffer.byteLength);
+        return res.json({ imageData: `data:${contentType};base64,${base64}` });
     } catch (err) {
-        console.error('生成图片时出错:', err);
+        console.error('Image generation error:', err);
         res.status(500).json({ error: err.message });
     }
 });
