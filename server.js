@@ -19,13 +19,13 @@ app.post('/api/generate-image', async (req, res) => {
             return res.status(500).json({ error: 'DashScope API key 未配置' });
         }
 
-        // 使用阿里云DashScope API生成水墨画
+        // 使用阿里云DashScope API生成水墨画 (异步调用)
         const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`,
-                'X-DashScope-SSE': 'disable'
+                'X-DashScope-SSE': 'enable'  // 启用SSE以支持异步调用
             },
             body: JSON.stringify({
                 model: 'wanx-v1',
@@ -50,6 +50,51 @@ app.post('/api/generate-image', async (req, res) => {
         const data = await response.json();
         console.log('DashScope response:', JSON.stringify(data, null, 2));
 
+        // 检查是否有task_id，说明是异步任务
+        if (data.output && data.output.task_id) {
+            // 异步任务，需要轮询结果
+            const taskId = data.output.task_id;
+            let attempts = 0;
+            const maxAttempts = 30; // 最多等待30次
+
+            while (attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒
+
+                const statusResponse = await fetch(`https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                if (statusResponse.ok) {
+                    const statusData = await statusResponse.json();
+                    console.log('Task status:', statusData);
+
+                    if (statusData.output && statusData.output.task_status === 'SUCCEEDED' && statusData.output.results && statusData.output.results.length > 0) {
+                        const imageUrl = statusData.output.results[0].url;
+                        // 获取图片数据
+                        const imageResponse = await fetch(imageUrl);
+                        if (!imageResponse.ok) {
+                            return res.status(500).json({ error: '无法获取生成的图片' });
+                        }
+
+                        const buffer = await imageResponse.arrayBuffer();
+                        const base64 = Buffer.from(buffer).toString('base64');
+                        const contentType = imageResponse.headers.get('content-type') || 'image/png';
+
+                        return res.json({ imageData: `data:${contentType};base64,${base64}` });
+                    } else if (statusData.output && statusData.output.task_status === 'FAILED') {
+                        return res.status(500).json({ error: '图片生成失败' });
+                    }
+                }
+
+                attempts++;
+            }
+
+            return res.status(500).json({ error: '图片生成超时' });
+        }
+
+        // 如果直接返回结果（同步模式）
         if (data.output && data.output.results && data.output.results.length > 0) {
             const imageUrl = data.output.results[0].url;
             // 获取图片数据
