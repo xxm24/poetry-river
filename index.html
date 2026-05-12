@@ -13,6 +13,7 @@
             <div class="start-verse">大漠孤烟直，长河落日圆</div>
             <button id="start-btn">泛 舟</button>
             <div class="start-hint">← → 移动｜ 点击河中彩色字垂钓</div>
+            <button id="test-btn">Test Image</button>
         </div>
     </div>
 
@@ -20,6 +21,11 @@
 
     <div id="poem-card" class="hidden">
         <div id="card-inner">
+            <div id="card-image-wrap" class="hidden">
+                <div id="card-image-placeholder">正在生成意象画面，请稍候……</div>
+                <img id="card-image" src="" alt="生成的意象画" />
+                <video id="card-video" autoplay muted loop playsinline></video>
+            </div>
             <div id="card-keyword-wrap">
                 <span id="card-keyword"></span>
             </div>
@@ -43,6 +49,6 @@
         </div>
     </div>
 
-    <script src="sketch.js"></script>
+    <script src="sketch.js?v=2"></script>
 </body>
 </html>

@@ -77,20 +77,27 @@ body {
 #poem-card.hidden { display: none; }
 
 #card-inner {
-    /*↓ 原来 background: #fff，改成半透明 */
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 16px;
-    max-width: 420px;
-    width: 88%;
-    padding: 36px 32px;
+    border-radius: 20px;
+    max-width: 680px;
+    width: 92%;
+    padding: 40px 36px;
     text-align: center;
     position: relative;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.16);
+    overflow: hidden;
 }
-#card-keyword-wrap { margin-bottom: 32px; }
+#card-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(245,245,245,0.75));
+    pointer-events: none;
+}
+#card-keyword-wrap { margin-bottom: 34px; position: relative; z-index: 2; }
 #card-keyword {
     font-family: "Ma Shan Zheng", serif;
     font-size: 80px;
@@ -122,7 +129,86 @@ body {
     padding: 16px;background: rgba(0,0,0,0.02);
     border-radius: 4px;
 }
+#card-image-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: none;
+    overflow: hidden;
+    border-radius: 20px;
+}
+#card-image-wrap.hidden {
+    display: none;
+}
+#card-image-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #777;
+    font-size: 15px;
+    padding: 20px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(8px);
+    z-index: 1;
+}
+#card-image, #card-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.32;
+    transform: scale(1.08);
+    animation: cardImageFloat 18s ease-in-out infinite;
+    display: none;
+}
+#card-video {
+    display: none;
+}
+@keyframes cardImageFloat {
+    0%, 100% { transform: scale(1.08) translateY(0); }
+    50% { transform: scale(1.1) translateY(-6px); }
+}
+#card-translation, #card-meta, #card-poem, #card-keyword-wrap, #card-stats, #card-close {
+    position: relative;
+    z-index: 2;
+}
+#card-poem {
+    font-family: "Noto Serif SC", serif;
+    font-size: 18px;
+    color: #333;
+    line-height: 2.2;
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+    border-left: 2px solid rgba(255, 255, 255, 0.6);
+    padding-left: 20px;
+    text-align: left;
+}
+#card-meta {
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 24px;
+    letter-spacing: 2px;
+}
+#card-translation {
+    font-size: 13px;
+    color: #aaa;
+    line-height: 1.9;
+    text-align: left;
+    margin-bottom: 28px;
+    padding: 16px;
+    background: rgba(255,255,255,0.55);
+    border-radius: 4px;
+}
+#card-close {
+    position: relative;
+    z-index: 2;
+}
 #card-stats {
+
     display: flex;
     justify-content: center;
     gap: 32px;

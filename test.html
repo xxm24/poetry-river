@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片生成测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        textarea { width: 100%; height: 100px; }
+        button { margin: 10px 0; padding: 10px 20px; }
+        img { max-width: 100%; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>AI 图片生成测试</h1>
+    <textarea id="prompt" placeholder="输入图片描述...">水墨风格中国古典诗意插画，表现"月"这一意象，画面色调参考 #C0C0C0，要求意境悠远、清雅。</textarea>
+    <br>
+    <button onclick="generateImage()">生成图片</button>
+    <div id="result"></div>
+
+    <script>
+        function buildPollinationsUrl(prompt) {
+            return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
+        }
+
+        function generateImage() {
+            const prompt = document.getElementById('prompt').value;
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '正在生成...';
+
+            const imageUrl = buildPollinationsUrl(prompt);
+            resultDiv.innerHTML = `<img src="${imageUrl}" alt="生成的图片">`;
+        }
+    </script>
+</body>
+</html>

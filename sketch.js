@@ -60,6 +60,7 @@ let hoveredFish = null;
 // ───── preload ─────
 function preload() {
     poems = loadJSON('data/poems.json');
+    console.log('poems loaded:', poems);
 }
 
 
@@ -86,10 +87,20 @@ function setup() {
             document.getElementById('start-screen').style.display = 'none';}, 1200);
     });
 
+    document.getElementById('test-btn').addEventListener('click', function () {
+        let testPoem = { keyword: '月', poem: '床前明月光，疑是地上霜。举头望明月，低头思故乡。', color: '#C8960F', dynasty: '唐', poet: '李白', title: '静夜思', translation: '明亮的月光洒在床前，好像地上泛起了一层白霜。抬头望着天上的明月，低下头不禁思念起远方的故乡。', frequency: 1, emotion: '思念' };
+        showPoemCard(testPoem);
+    });
+
     document.getElementById('card-close').addEventListener('click', function () {
         document.getElementById('poem-card').classList.add('hidden');
         activeEffect = '';
         targetTint = { r: 0, g: 0, b: 0, a: 0 };
+        const videoEl = document.getElementById('card-video');
+        videoEl.pause();
+        videoEl.src = '';
+        const imageEl = document.getElementById('card-image');
+        imageEl.src = '';
     });
 }
 
@@ -1052,7 +1063,89 @@ function showPoemCard(poem) {
     document.getElementById('card-emotion').textContent = poem.emotion;
     document.getElementById('card-color-dot').style.backgroundColor = poem.color;
 
+    const imageWrap = document.getElementById('card-image-wrap');
+    const imageEl = document.getElementById('card-image');
+    const videoEl = document.getElementById('card-video');
+    const imagePlaceholder = document.getElementById('card-image-placeholder');
+    imageEl.src = '';
+    videoEl.src = '';
+    imageEl.style.display = 'none';
+    videoEl.style.display = 'none';
+    imagePlaceholder.style.display = 'block';
+    imagePlaceholder.textContent = '正在生成意象画面，请稍候……';
+    imageWrap.classList.remove('hidden');
+
     document.getElementById('poem-card').classList.remove('hidden');
+    generatePoemIllustration(poem);
+}
+
+async function generatePoemIllustration(poem) {
+    const prompt = buildImagePrompt(poem);
+    const imageEl = document.getElementById('card-image');
+    const videoEl = document.getElementById('card-video');
+    const placeholder = document.getElementById('card-image-placeholder');
+    const imageWrap = document.getElementById('card-image-wrap');
+
+    imageWrap.classList.remove('hidden');
+    imageEl.style.display = 'none';
+    videoEl.style.display = 'none';
+    placeholder.style.display = 'block';
+    placeholder.textContent = '正在生成意象画面，请稍候……';
+
+    try {
+        const resp = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+        });
+
+        if (!resp.ok) {
+            const errorText = await resp.text();
+            throw new Error(errorText || '请求失败');
+        }
+
+        const data = await resp.json();
+        const imageUrl = data.imageData;
+        const videoUrl = data.videoData;
+
+        if (videoUrl) {
+            videoEl.oncanplaythrough = () => {
+                placeholder.style.display = 'none';
+                videoEl.style.display = 'block';
+                videoEl.play().catch(() => {});
+            };
+            videoEl.onerror = () => {
+                placeholder.textContent = '视频播放失败，请刷新或重试。';
+                videoEl.style.display = 'none';
+            };
+            videoEl.src = videoUrl;
+            return;
+        }
+
+        if (imageUrl) {
+            imageEl.onload = () => {
+                placeholder.style.display = 'none';
+                imageEl.style.display = 'block';
+            };
+            imageEl.onerror = () => {
+                placeholder.textContent = '图片加载失败，请刷新或重试。';
+                imageEl.style.display = 'none';
+            };
+            imageEl.src = imageUrl;
+            return;
+        }
+
+        throw new Error('接口未返回可用媒体内容');
+    } catch (err) {
+        placeholder.textContent = '画面生成失败：' + err.message;
+        imageEl.style.display = 'none';
+        videoEl.style.display = 'none';
+        console.error(err);
+    }
+}
+
+function buildImagePrompt(poem) {
+    return `动态水墨画风，请根据诗词意象“${poem.keyword}”生成一幅古典水墨动画背景，内容结合以下诗句：${poem.poem}。画面应呈现淡墨云雾、飞花流水、氤氲山水和诗词意境，整体氛围清雅空灵，适合放在半透明诗词卡片后方，保留足够空间不遮挡文字。`;
 }
 
 
