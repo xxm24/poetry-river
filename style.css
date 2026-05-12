@@ -131,6 +131,7 @@ body {
 }
 #card-image-wrap {
     position: relative;
+    z-index: 0;
     display: none;
     justify-content: center;
     align-items: center;

@@ -1149,7 +1149,7 @@ async function generatePoemIllustration(poem) {
 }
 
 function buildImagePrompt(poem) {
-    return `动态水墨画风，请根据诗词意象“${poem.keyword}”生成一幅古典水墨动画背景，内容结合以下诗句：${poem.poem}。画面应呈现淡墨云雾、飞花流水、氤氲山水和诗词意境，整体氛围清雅空灵，适合放在半透明诗词卡片后方，保留足够空间不遮挡文字。`;
+    return `动态水墨画风，请根据诗词意象“${poem.keyword}”生成一幅古典水墨插画，内容结合以下诗句：${poem.poem}。画面主体居中，呈现淡墨云雾、飞花流水、氤氲山水和诗词意境，整体氛围清雅空灵，适合作为卡片顶部主体插图。`;
 }
 
 
